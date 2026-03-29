@@ -54,6 +54,39 @@ AIQnA/
 ├── .gitignore            # Hides API key & build files
 └── README.md             # This file
 ```
+##  Setup Instructions
+
+### Step 1 — Prerequisites
+Make sure you have the following installed:
+- [Visual Studio 2022](https://visualstudio.microsoft.com/) with **.NET Desktop Development** workload
+- [.NET 6.0 SDK](https://dotnet.microsoft.com/download/dotnet/6.0)
+- A free Google AI API key from [aistudio.google.com](https://aistudio.google.com)
+
+### Step 2 — Clone the Repository
+```
+git clone https://github.com/Aleeza-Maryam/AIQnA.git
+cd AIQnA
+```
+
+### Step 3 — Add Your API Key
+Open `Form1.cs` and replace the API key:
+```csharp
+private const string API_KEY = "YOUR_GOOGLE_API_KEY_HERE";
+```
+
+### Step 4 — Run the Project
+1. Open `AIQnA.sln` in Visual Studio 2022
+2. Press **F5** to build and run
+3. Type any question in the input box
+4. Press **Enter** or click **Send**
+
+### Step 5 — Docker (Optional)
+Build and run using Docker:
+```
+docker build -t aiqna-app .
+docker run --isolation=process aiqna-app
+```
+> Note: Requires Docker Desktop in Windows container mode.
 ## 📸 Screenshots
 
 ### Chat Interface
