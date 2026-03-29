@@ -54,5 +54,10 @@ AIQnA/
 ├── .gitignore            # Hides API key & build files
 └── README.md             # This file
 ```
+## 📸 Screenshots
 
----
+### Chat Interface
+![Chat UI](screenshots/ui.png)
+
+### AI Response
+![AI Response](screenshots/response.png)
