@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Net.Http;
 using System.Text;
@@ -10,15 +11,26 @@ namespace AIQnA
 {
     public partial class Form1 : Form
     {
-        private const string API_KEY = "YOUR_API_KEY_HERE";
-        private const string API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent";
+        private const string API_KEY = "";
+        private const string API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
         private readonly HttpClient _httpClient = new HttpClient();
         private int _questionCount = 0;
 
+        // Conversation history storage
+        private List<object> _conversationHistory = new List<object>();
+
         public Form1()
         {
             InitializeComponent();
+            rtbHistory.SelectionAlignment = HorizontalAlignment.Center;
+            rtbHistory.SelectionColor = Color.FromArgb(80, 80, 80);
+            rtbHistory.SelectionFont = new Font("Segoe UI", 9f, FontStyle.Italic);
+            rtbHistory.AppendText("\n\n🤖 AI Q&A System\nAsk any question — I will answer!\n\n");
+
+            // System instruction (remembers name, previous questions)
+            _conversationHistory.Add(new { role = "user", parts = new[] { new { text = "You are a helpful AI assistant that remembers everything the user tells you. Remember the user's name and previous questions. Always respond in English or Urdu as appropriate. Keep answers concise but helpful. If you need current information, you can use Google Search." } } });
+            _conversationHistory.Add(new { role = "model", parts = new[] { new { text = "Sure! I will remember our conversation, and I can use Google Search to give you the latest information when needed." } } });
         }
 
         private async void btnAsk_Click(object sender, EventArgs e)
@@ -27,7 +39,7 @@ namespace AIQnA
 
             if (string.IsNullOrEmpty(question))
             {
-                MessageBox.Show("Koi sawal likho pehle!", "Empty Input",
+                MessageBox.Show("Please write a question first!", "Empty Input",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -51,19 +63,18 @@ namespace AIQnA
             }
         }
 
-        private async System.Threading.Tasks.Task<string> GetAIAnswerAsync(string question)
+        private async Task<string> GetAIAnswerAsync(string question)
         {
+            // Add user's question to history
+            _conversationHistory.Add(new { role = "user", parts = new[] { new { text = question } } });
+
+            // Request body with Google Search grounding (tools)
             var requestBody = new
             {
-                contents = new[]
+                contents = _conversationHistory,
+                tools = new[]
                 {
-                    new
-                    {
-                        parts = new[]
-                        {
-                            new { text = question }
-                        }
-                    }
+                    new { googleSearch = new object() }   // Enable Google Search
                 },
                 generationConfig = new
                 {
@@ -76,7 +87,6 @@ namespace AIQnA
 
             string json = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-
             string urlWithKey = $"{API_URL}?key={API_KEY}";
 
             try
@@ -99,26 +109,42 @@ namespace AIQnA
                     {
                         var candidate = candidates[0];
 
-                        // Get the content
+                        // Get the text answer
                         if (candidate.TryGetProperty("content", out JsonElement contentElement) &&
                             contentElement.TryGetProperty("parts", out JsonElement parts) &&
                             parts.GetArrayLength() > 0 &&
                             parts[0].TryGetProperty("text", out JsonElement text))
                         {
-                            string answer = text.GetString()?.Trim() ?? "Koi jawab nahi mila.";
+                            string answer = text.GetString()?.Trim() ?? "No answer found.";
 
                             // Check if truncated
                             if (candidate.TryGetProperty("finishReason", out JsonElement finishReason) &&
                                 finishReason.GetString() == "MAX_TOKENS")
                             {
-                                answer += "\n\n[⚠️ Jawab adhoora hai. Next time sawal chhota kar ke pucho.]";
+                                answer += "\n\n[⚠️ Answer incomplete. Please ask a shorter question.]";
+                            }
+
+                            // Add a note if Google Search was used
+                            if (candidate.TryGetProperty("groundingMetadata", out _))
+                            {
+                                answer += "\n\n(🔍 Fresh information from Google Search)";
+                            }
+
+                            // Save assistant's response to history
+                            _conversationHistory.Add(new { role = "model", parts = new[] { new { text = answer } } });
+
+                            // Limit history length (keep last 30 messages, keep initial system instructions)
+                            const int maxMessages = 30;
+                            if (_conversationHistory.Count > maxMessages)
+                            {
+                                _conversationHistory.RemoveRange(2, _conversationHistory.Count - maxMessages);
                             }
 
                             return answer;
                         }
                     }
 
-                    return "Koi jawab nahi mila.";
+                    return "No answer found.";
                 }
             }
             catch (HttpRequestException ex)
@@ -133,28 +159,74 @@ namespace AIQnA
 
         private void DisplayAnswer(string question, string answer)
         {
-            rtbHistory.SelectionColor = Color.Blue;
-            rtbHistory.AppendText($"\n[Q{_questionCount}] {question}\n");
-            rtbHistory.SelectionColor = Color.Green;
-            rtbHistory.AppendText($"Jawab: {answer}\n");
-            rtbHistory.SelectionColor = Color.Gray;
-            rtbHistory.AppendText("─────────────────────────────\n");
+            // User message (right bubble)
+            rtbHistory.SelectionAlignment = HorizontalAlignment.Right;
+            rtbHistory.SelectionColor = Color.FromArgb(130, 130, 130);
+            rtbHistory.SelectionFont = new Font("Segoe UI", 9f);
+            rtbHistory.AppendText("\n🧑 You\n");
+
+            rtbHistory.SelectionAlignment = HorizontalAlignment.Right;
+            rtbHistory.SelectionBackColor = Color.FromArgb(0, 100, 210);
+            rtbHistory.SelectionColor = Color.White;
+            rtbHistory.SelectionFont = new Font("Segoe UI", 12f, FontStyle.Bold);
+            rtbHistory.AppendText($"  {question}  ");
+            rtbHistory.SelectionBackColor = Color.FromArgb(18, 18, 18);
+            rtbHistory.SelectionFont = new Font("Segoe UI", 4f);
+            rtbHistory.AppendText("\n\n");
+
+            // AI message (left bubble)
+            rtbHistory.SelectionAlignment = HorizontalAlignment.Left;
+            rtbHistory.SelectionColor = Color.FromArgb(80, 200, 80);
+            rtbHistory.SelectionFont = new Font("Segoe UI", 9f);
+            rtbHistory.AppendText("🤖 Gemini AI\n");
+
+            rtbHistory.SelectionAlignment = HorizontalAlignment.Left;
+            rtbHistory.SelectionBackColor = Color.FromArgb(40, 40, 40);
+            rtbHistory.SelectionColor = Color.FromArgb(230, 230, 230);
+            rtbHistory.SelectionFont = new Font("Segoe UI", 12f);
+            rtbHistory.AppendText($"  {answer.Trim()}  ");
+            rtbHistory.SelectionBackColor = Color.FromArgb(18, 18, 18);
+            rtbHistory.SelectionFont = new Font("Segoe UI", 4f);
+            rtbHistory.AppendText("\n\n");
+
+            // Divider
+            rtbHistory.SelectionAlignment = HorizontalAlignment.Center;
+            rtbHistory.SelectionColor = Color.FromArgb(50, 50, 50);
+            rtbHistory.SelectionFont = new Font("Segoe UI", 8f);
+            rtbHistory.AppendText("· · · · · · · · · · · · · · · · · ·\n\n");
+
             rtbHistory.ScrollToCaret();
-            lblCount.Text = $"Total Sawal: {_questionCount}";
+            lblCount.Text = $"Total Questions: {_questionCount}";
         }
 
         private void SetLoadingState(bool isLoading)
         {
             btnAsk.Enabled = !isLoading;
             txtQuestion.Enabled = !isLoading;
-            lblStatus.Text = isLoading ? "⏳ Jawab aa raha hai..." : "✅ Ready";
+            lblStatus.Text = isLoading ? "⏳ Getting answer..." : "✅ Ready";
         }
 
         private void btnClear_Click(object sender, EventArgs e)
         {
-            rtbHistory.Clear();
-            _questionCount = 0;
-            lblCount.Text = "Total Sawal: 0";
+            DialogResult result = MessageBox.Show("Do you want to clear all history? This will also reset the chatbot's memory.", "Confirm Clear",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result == DialogResult.Yes)
+            {
+                rtbHistory.Clear();
+                _questionCount = 0;
+                lblCount.Text = "Total Questions: 0";
+
+                // Reset conversation history but keep system instruction
+                _conversationHistory.Clear();
+                _conversationHistory.Add(new { role = "user", parts = new[] { new { text = "You are a helpful AI assistant that remembers everything the user tells you. Remember the user's name and previous questions. Always respond in English or Urdu as appropriate. Keep answers concise but helpful. If you need current information, you can use Google Search." } } });
+                _conversationHistory.Add(new { role = "model", parts = new[] { new { text = "Sure! I will remember our conversation, and I can use Google Search to give you the latest information when needed." } } });
+
+                // Re-add welcome message
+                rtbHistory.SelectionAlignment = HorizontalAlignment.Center;
+                rtbHistory.SelectionColor = Color.FromArgb(80, 80, 80);
+                rtbHistory.SelectionFont = new Font("Segoe UI", 9f, FontStyle.Italic);
+                rtbHistory.AppendText("\n\n🤖 AI Q&A System\nAsk any question — I will answer!\n\n");
+            }
         }
 
         private void txtQuestion_KeyDown(object sender, KeyEventArgs e)
