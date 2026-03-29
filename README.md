@@ -57,7 +57,7 @@ AIQnA/
 ## 📸 Screenshots
 
 ### Chat Interface
-![Chat UI](screenshots/ui.png)
+![Chat UI](screenshots/chatbot.png)
 
 ### AI Response
-![AI Response](screenshots/response.png)
+![AI Response](screenshots/Q1.png)
