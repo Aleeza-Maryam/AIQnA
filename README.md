@@ -61,3 +61,5 @@ AIQnA/
 
 ### AI Response
 ![AI Response](screenshots/Q1.png)
+### AI Response
+![AI Response](screenshots/Q2.png)
